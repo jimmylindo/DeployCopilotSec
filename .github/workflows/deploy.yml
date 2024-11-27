@@ -19,8 +19,14 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ JLSECRET.AZURE_CREDENTIALS }}
+
       # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Deploy SecCopilot
+        
         run: |
           az group create -l westeurope -n JLCopilot
           az deployment group create --name CopilotDeployment --resource-group JLCopilot --template-file ./main.bicep --parameters ./main.bicepparam
