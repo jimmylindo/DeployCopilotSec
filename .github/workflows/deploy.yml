@@ -22,7 +22,7 @@ jobs:
       - name: Azure CLI Login
         uses: azure/login@v2
         with:
-          creds: ${{ JLSECRET.AZURE_CREDENTIALS }}
+          creds: ${{ secrets.JLSECRET }}
 
       # Runs a set of commands using the runners shell
       - name: Deploy SecCopilot
