@@ -23,6 +23,7 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.JLSECRET }}
+          # subscription: 'your-subscription-id'
 
       # Runs a set of commands using the runners shell
       - name: Deploy SecCopilot
