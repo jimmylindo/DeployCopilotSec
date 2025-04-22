@@ -25,15 +25,6 @@ jobs:
           creds: ${{ secrets.JLSECRET }}
           # subscription: 'your-subscription-id'
 
-      - name: Install Bicep CLI
-        run: |
-          curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-          chmod +x ./bicep
-          mkdir -p ~/.azure/bin
-          mv ./bicep ~/.azure/bin/
-          echo "## Add Bicep binary to PATH"
-          echo "~/.azure/bin" >> $GITHUB_PATH
-
       # Runs a set of commands using the runners shell
       - name: Deploy SecCopilot
         
