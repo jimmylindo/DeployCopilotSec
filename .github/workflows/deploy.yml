@@ -1,42 +1,67 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Deploy SecCopilot
 
-# Controls when the workflow will run
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      whatIfOnly:
+        description: 'Only run what-if (preview changes, deploy nothing)'
+        type: boolean
+        required: false
+        default: false
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      RESOURCE_GROUP: JLCopilot
+      LOCATION: westeurope
+      DEPLOYMENT_NAME: CopilotDeployment
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      - name: Azure CLI Login
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.JLSECRET }}
-          # subscription: 'your-subscription-id'
-          
-      - name: Install Bicep CLI
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Bicep
         run: |
-          curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-          chmod +x ./bicep
-          mkdir -p ~/.azure/bin
-          mv ./bicep ~/.azure/bin/
-          echo "## Add Bicep binary to PATH"
-          echo "~/.azure/bin" >> $GITHUB_PATH
-      
-      # Runs a set of commands using the runners shell
+          az bicep install
+          az bicep version
+
+      - name: Ensure resource group
+        if: ${{ !inputs.whatIfOnly }}
+        run: |
+          if [ "$(az group exists --name "$RESOURCE_GROUP")" = "true" ]; then
+            echo "Resource group $RESOURCE_GROUP already exists."
+          else
+            az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
+            echo "Created resource group $RESOURCE_GROUP in $LOCATION."
+          fi
+
+      - name: What-if
+        run: |
+          if [ "$(az group exists --name "$RESOURCE_GROUP")" != "true" ]; then
+            echo "::notice::Resource group $RESOURCE_GROUP does not exist; a deployment would create it in $LOCATION and create every resource in main.bicep. Skipping what-if."
+            exit 0
+          fi
+          az deployment group what-if \
+            --name "$DEPLOYMENT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file ./main.bicep \
+            --parameters ./main.bicepparam
+
       - name: Deploy SecCopilot
-        
+        if: ${{ !inputs.whatIfOnly }}
         run: |
-          az group create -l westeurope -n JLCopilot
-          az deployment group create --name CopilotDeployment --resource-group JLCopilot --template-file ./main.bicep --parameters ./main.bicepparam
+          az deployment group create \
+            --name "$DEPLOYMENT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file ./main.bicep \
+            --parameters ./main.bicepparam

@@ -1,38 +1,36 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Remove SecCopilot
 
-# Controls when the workflow will run
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-  # Schedule the workflow to run once every day at midnight (UTC)
+  # Runs once every day at midnight (UTC)
   schedule:
     - cron: '0 0 * * *'
 
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  destroy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     env:
-      RESOURCE_GROUP_NAME: 'JLCopilot'
+      RESOURCE_GROUP_NAME: JLCopilot
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      - name: Azure CLI Login
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.JLSECRET }}
-      # Runs a set of commands using the runners shell
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Remove SecCopilot
         run: |
-          if $(az group exists --name ${{ env.RESOURCE_GROUP_NAME }}) ; then
-          az group delete --name JLCopilot --yes --no-wait
+          if [ "$(az group exists --name "$RESOURCE_GROUP_NAME")" = "true" ]; then
+            az group delete --name "$RESOURCE_GROUP_NAME" --yes --no-wait
+            echo "Deleting resource group $RESOURCE_GROUP_NAME."
           else
-          echo "Azure resource group created does not exists"
-          fi        
+            echo "Resource group $RESOURCE_GROUP_NAME does not exist."
+          fi
