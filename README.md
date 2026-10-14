@@ -18,20 +18,34 @@ The `main.bicepparam` file contains the parameter values for the `main.bicep` fi
 
 There are two GitHub Actions workflows in this repository:
 
-1. **Deployment Workflow (`deploy.yml`)**: This workflow deploys the Bicep file to Azure. It runs at 8 AM UTC from Monday to Friday.
+1. **Deployment Workflow (`deploy.yml`)**: Deploys the Bicep file to the `JLCopilot` resource group in `westeurope`. It is started manually (Actions → Deploy SecCopilot → Run workflow). The resource group is created if it does not exist, and `az deployment group what-if` runs before the deployment. Tick **whatIfOnly** to preview the changes without deploying anything.
 
-2. **Destruction Workflow (`destroy.yml`)**: This workflow destroys the deployed resources by deleting the resource group in Azure. It runs at 5 PM UTC from Monday to Friday.
+2. **Destruction Workflow (`destroy.yml`)**: Destroys the deployed resources by deleting the resource group in Azure. It runs every day at midnight UTC and can also be started manually.
+
+Both workflows log in to Azure with OpenID Connect (federated credentials), so no client secret is stored in GitHub.
 
 ## Usage
 
 To use this repository, you need to do the following:
 
 1. Fork this repository to your own GitHub account.
-2. Set up your Azure credentials as a secret in your GitHub repository. You can do this in the repository settings under the "Secrets and variables" section.
-  - Run the following command in Cloud Shell or another PowerShell window with right permissions to create a Service Principal with **Contributor** rights.
-  `az ad sp create-for-rbac --name {app-name} --role contributor --scopes /subscriptions/{subscription-id}/resourceGroups/exampleRG --json-auth` 
-  - Copy the output and then paste it in the **Value** section when you are creating the new secret in GitHub Actions.
-3. Update the parameters in the `main.bicepparam` file and the GitHub Actions workflows as necessary.
+2. Create (or reuse) an app registration in Entra ID and give its service principal the **Contributor** role on the subscription. Subscription scope is needed because the resource group is deleted and recreated.
+   ```bash
+   appId=$(az ad app create --display-name {app-name} --query appId -o tsv)
+   az ad sp create --id $appId
+   az role assignment create --assignee $appId --role Contributor --scope /subscriptions/{subscription-id}
+   ```
+   No client secret is needed.
+3. Run the setup script with PowerShell 7 (needs the `Microsoft.Graph.Applications` and `Az.Accounts` modules) after signing in with `Connect-AzAccount` to the right subscription:
+   `./scripts/Setup-GitHubOidc.ps1 -AppId {app-id} -GitHubOrg {github-org} -GitHubRepo {repo-name}`
+   It adds a federated credential for `repo:{org}/{repo}:ref:refs/heads/main` to the app registration. Add `-RemoveExpiredSecrets` to also clean up expired client secrets.
+4. Set the three values the script prints as repository **variables** (not secrets) under Settings → Secrets and variables → Actions → Variables, or run the `gh variable set` commands it prints:
+   - `AZURE_CLIENT_ID`
+   - `AZURE_TENANT_ID`
+   - `AZURE_SUBSCRIPTION_ID`
+5. Update the parameters in the `main.bicepparam` file and the resource group name and location in the workflows as necessary.
+
+The federated credential only trusts the `main` branch, so run the workflows from `main`.
 
 Please note that deleting a resource group will delete all resources within that group. Make sure this is what you want before running the destruction workflow.
 
